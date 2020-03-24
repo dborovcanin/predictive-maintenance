@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  annotations:
+    pipelines.kubeflow.org/pipeline_spec: '{"description": "A pipeline with two sequential
+      steps.", "inputs": [{"default": "https://vincentarelbundock.github.io/Rdatasets/csv/boot/acme.csv",
+      "name": "datapace_url"}], "name": "Sequential pipeline"}'
+  generateName: sequential-pipeline-test-
+spec:
+  arguments:
+    parameters:
+    - name: datapace_url
+      value: https://vincentarelbundock.github.io/Rdatasets/csv/boot/acme.csv
+  entrypoint: sequential-pipeline
+  serviceAccountName: pipeline-runner
+  templates:
+  - container:
+      args:
+      - echo "$0"
+      - '{{inputs.parameters.download-data}}'
+      command:
+      - sh
+      - -c
+      image: library/bash:4.4.23
+    inputs:
+      parameters:
+      - name: download-data
+    name: echo
+  - container:
+      args:
+      - apk add curl && curl $0 | tee $1
+      - '{{inputs.parameters.datapace_url}}'
+      - /results.txt
+      command:
+      - sh
+      - -c
+      image: alpine:3.7
+    inputs:
+      parameters:
+      - name: datapace_url
+    name: download
+    outputs:
+      artifacts:
+      - name: download-data
+        path: /results.txt
+      parameters:
+      - name: download-data
+        valueFrom:
+          path: /results.txt
+  - dag:
+      tasks:
+      - arguments:
+          parameters:
+          - name: download-data
+            value: '{{tasks.download.outputs.parameters.download-data}}'
+        dependencies:
+        - download
+        name: echo
+        template: echo
+      - arguments:
+          parameters:
+          - name: datapace_url
+            value: '{{inputs.parameters.datapace_url}}'
+        name: download
+        template: download
+    inputs:
+      parameters:
+      - name: datapace_url
+    name: sequential-pipeline
