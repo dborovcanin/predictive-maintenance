@@ -34,9 +34,6 @@ spec:
         path: /unzipped/dataset.csv
   - container:
       image: dusanb94/kubeflow-test:train
-      args:
-      - --dataset=/tmp/dataset.csv
-      - --out=/model
       command:
       - python
       - train.py
@@ -54,6 +51,22 @@ spec:
       artifacts:
       - name: ai_model
         path: '{{inputs.parameters.out}}'
+  - container:
+      args:
+      - apk add curl && curl -X POST --data-binary @$0 $1 
+      - /tmp/model
+      - '{{inputs.parameters.datapace_url}}'
+      command:
+      - sh
+      - -c
+      image: alpine:3.7
+    inputs:
+      parameters:
+      - name: datapace_url
+      artifacts:
+      - name: model
+        path: /tmp/model
+    name: upload
   - dag:
       tasks:
       - arguments:
@@ -73,6 +86,17 @@ spec:
             value: '{{inputs.parameters.datapace_url}}'
         name: download
         template: download
+      - arguments:
+          parameters:
+          - name: datapace_url
+            value: '{{inputs.parameters.datapace_url}}'
+          artifacts:
+          - name: model
+            from: '{{tasks.run-algo.outputs.artifacts.ai_model}}'
+        dependencies:
+          - run-algo
+        name: upload
+        template: upload
     inputs:
       parameters:
       - name: datapace_url
