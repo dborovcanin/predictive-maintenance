@@ -1,0 +1,79 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  annotations:
+    pipelines.kubeflow.org/pipeline_spec: '{"description": "A pipeline with two sequential
+      steps.", "inputs": [{"default": "https://vincentarelbundock.github.io/Rdatasets/csv/boot/acme.csv",
+      "name": "datapace_url"}], "name": "Sequential pipeline"}'
+  generateName: sequential-pipeline-test-
+spec:
+  arguments:
+    parameters:
+    - name: datapace_url
+      value: https://vincentarelbundock.github.io/Rdatasets/csv/boot/acme.csv
+  entrypoint: sequential-pipeline
+  serviceAccountName: pipeline-runner
+  templates:
+  - container:
+      args:
+      - apk add curl unzip && mkdir /unzipped && curl $0 -o $1 && unzip $1 -d $2
+      - '{{inputs.parameters.datapace_url}}'
+      - zipped.zip
+      - /unzipped
+      command:
+      - sh
+      - -c
+      image: alpine:3.7
+    inputs:
+      parameters:
+      - name: datapace_url
+    name: download
+    outputs:
+      artifacts:
+      - name: dataset
+        path: /unzipped/dataset.csv
+  - container:
+      image: dusanb94/kubeflow-test:train
+      args:
+      - --dataset=/tmp/dataset.csv
+      - --out=/model
+      command:
+      - python
+      - train.py
+      args:
+      - --dataset=/tmp/dataset.csv #'{{inputs.artifacts.telemetry}}'
+      - --out=/model #'{{inputs.parameters.out}}'
+    name: run-algo
+    inputs:
+      artifacts:
+      - name: dataset
+        path: /tmp/dataset.csv
+      parameters:
+        - name: out
+    outputs:
+      artifacts:
+      - name: ai_model
+        path: '{{inputs.parameters.out}}'
+  - dag:
+      tasks:
+      - arguments:
+          artifacts:
+          - name: dataset
+            from: '{{tasks.download.outputs.artifacts.dataset}}'
+          parameters:
+          - name: out
+            value: /model
+        dependencies:
+        - download
+        name: run-algo
+        template: run-algo
+      - arguments:
+          parameters:
+          - name: datapace_url
+            value: '{{inputs.parameters.datapace_url}}'
+        name: download
+        template: download
+    inputs:
+      parameters:
+      - name: datapace_url
+    name: sequential-pipeline
