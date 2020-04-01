@@ -33,7 +33,7 @@ spec:
       - name: dataset
         path: /unzipped/dataset.csv
   - container:
-      image: dusanb94/kubeflow-test:train
+      image: dusanb94/kubeflow-test:evaluation
       command:
       - python
       - train.py
@@ -53,7 +53,7 @@ spec:
         path: '{{inputs.parameters.out}}'
   - container:
       args:
-      - apk add curl && curl -X POST --data-binary @$0 $1 
+      - apk add curl && curl -X POST -T $0 $1
       - /tmp/model
       - '{{inputs.parameters.datapace_url}}'
       command:
